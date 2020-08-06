@@ -19,10 +19,13 @@ import "codemirror/lib/codemirror.css";
 import "codemirror/theme/material.css";
 import { theme } from "../themes/theme";
 import socket from "../socket/socket";
+import Video from "twilio-video";
+import ParticipantVideo from "../video-chat/ParticipantVideo";
 require("codemirror/mode/xml/xml");
 require("codemirror/mode/python/python");
 require("codemirror/mode/clike/clike");
 require("codemirror/mode/javascript/javascript");
+
 const codeUIStyle = (theme) => ({
   root: {
     flexGrow: 1,
@@ -79,12 +82,42 @@ const codeUIStyle = (theme) => ({
       fill: "black",
     },
   },
+  videoContainer: {
+    right: 10,
+    top: 20,
+    position: "relative",
+    backgroundColor: "#494949",
+  },
+  remoteParticipant: {
+    position: "absolute",
+    margin: "0 auto",
+    right: 0,
+    borderRadius: "5px",
+    backgroundColor: "#494949",
+    zIndex: 5,
+    [theme.breakpoints.down("xs")]: {
+      maxWidth: 400,
+      position: "static !important",
+    },
+  },
+  localParticipant: {
+    position: "absolute",
+    right: 0,
+    marginTop: "auto",
+    borderTopRightRadius: "5px",
+    zIndex: 9,
+    [theme.breakpoints.down("xs")]: {
+      maxWidth: 400,
+      position: "static !important",
+    },
+  },
 });
 
 function CodeUI(props) {
   const { user } = useContext(UserContext);
   const [code, setCode] = useState(null);
   const [interview, setInterview] = useState(" ");
+  const [otherUserFirstName, setOtherUserFirstName] = useState("");
   const [runResult, setrunResult] = useState(null);
   const [inRoom, setInRoom] = useState(false);
   const [ownQuestion, setOwnQuestion] = useState(" ");
@@ -92,6 +125,10 @@ function CodeUI(props) {
   const [showingQuestion, setShowingQuestion] = useState(" ");
   const [peerQuestion, setPeerQuestion] = useState(" ");
   const history = useHistory();
+  const [videoRoom, setVideoRoom] = useState(null);
+  const [videoParticipants, setVideoParticipants] = useState([]);
+  const [token, setToken] = useState(null);
+
   const [language, setLanguage] = useState("text/x-python");
 
   useEffect(() => {
@@ -108,7 +145,6 @@ function CodeUI(props) {
             ""
           );
 
-          console.log(res.peerQuestion.description);
           setOwnQuestion(res.ownQuestion);
           setShowingQuestion(res.ownQuestion);
           let answerLink = res.peerQuestion.title.toLowerCase();
@@ -144,9 +180,12 @@ function CodeUI(props) {
           userId: user.id,
         },
         function (confimation, otherUser) {
-          if (!confimation) {
-            history.push("/dashboard");
-          } else setInterview(`Interview with ${otherUser.name}`);
+          if (!confimation) history.push("/dashboard");
+          else {
+            const fullNameSplit = otherUser.name.split(" ");
+            setOtherUserFirstName(fullNameSplit[0]);
+            setInterview(`Interview with ${otherUser.name}`);
+          }
         }
       );
     }
@@ -161,10 +200,76 @@ function CodeUI(props) {
       history.push(`/dashboard/${props.match.params.id}/feedback/1`);
     });
     socket.on("runResults", (res) => {
-      console.log(res);
       setrunResult(res);
     });
   }, []);
+
+  //For video chat room creation
+  useEffect(() => {
+    fetch(`/video/token/${props.match.params.id}`, {
+      method: "POST",
+      body: JSON.stringify({}),
+      headers: { "Content-Type": "application/json" },
+    })
+      .then((res) => res.json())
+      .then((data) => setToken(data.token));
+  }, []);
+
+  //For video chat connection
+  useEffect(() => {
+    if (token) {
+      const participantConnected = (participant) => {
+        setVideoParticipants((prevParticipants) => [
+          ...prevParticipants,
+          participant,
+        ]);
+      };
+
+      const participantDisconnected = (participant) => {
+        setVideoParticipants((prevParticipants) =>
+          prevParticipants.filter((p) => p !== participant)
+        );
+      };
+
+      Video.connect(token, {
+        name: props.match.params.id,
+      }).then((videoRoom) => {
+        setVideoRoom(videoRoom);
+        videoRoom.on("participantConnected", participantConnected);
+        videoRoom.on("participantDisconnected", participantDisconnected);
+        videoRoom.participants.forEach(participantConnected);
+      });
+
+      return () => {
+        setVideoRoom((currentRoom) => {
+          if (
+            currentRoom &&
+            currentRoom.localParticipant.state === "connected"
+          ) {
+            currentRoom.localParticipant.tracks.forEach(function (
+              trackPublication
+            ) {
+              trackPublication.track.stop();
+            });
+            currentRoom.disconnect();
+            return null;
+          } else {
+            return currentRoom;
+          }
+        });
+      };
+    }
+  }, [props.match.params.id, token]);
+
+  //For video chat other participant video
+  const remoteParticipants = videoParticipants.map((participant) => (
+    <ParticipantVideo
+      key={participant.sid}
+      participant={participant}
+      remote={true}
+      otherUserFirstName={otherUserFirstName}
+    />
+  ));
 
   const handleInRoom = () => {
     inRoom ? setInRoom(false) : setInRoom(true);
@@ -190,6 +295,7 @@ function CodeUI(props) {
     fetch(`/interviews/endInterview/${props.match.params.id}`)
       .then((res) => socket.emit("endInterview", { id: props.match.params.id }))
       .catch((err) => console.log(err));
+    setToken(null); //For video-chat logout
   }
 
   const changeLanguage = (lang) => {
@@ -214,6 +320,20 @@ function CodeUI(props) {
           </AppBar>
         </Grid>
       </Grid>
+      <div className={classes.videoContainer}>
+        <div className={classes.localParticipant}>
+          {videoRoom ? (
+            <ParticipantVideo
+              key={videoRoom.localParticipant.sid}
+              participant={videoRoom.localParticipant}
+              remote={false}
+            />
+          ) : (
+            ""
+          )}
+        </div>
+        <div className={classes.remoteParticipant}>{remoteParticipants}</div>
+      </div>
       <Grid container spacing={2}>
         <Grid item xs={12} sm={6} className={classes.itemGrid}>
           <Box style={{ height: "800px" }}>
@@ -241,7 +361,6 @@ function CodeUI(props) {
                 </Button>
               </Grid>
             </Grid>
-
             <Typography
               className={classes.title}
               color="primary"
@@ -263,7 +382,6 @@ function CodeUI(props) {
             ></div>
           </Box>
         </Grid>
-
         <Grid
           item
           xs={12}
@@ -299,6 +417,7 @@ function CodeUI(props) {
               setCode(value);
             }}
             onChange={(editor, data, value) => {}}
+            style={{ position: "absolute" }}
           />
           <Box bgcolor="#263238" height="210px">
             <AppBar position="static" color="primary">

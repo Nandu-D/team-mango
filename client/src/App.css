@@ -26,6 +26,10 @@
   height: 603px !important;
 }
 
+video {
+  right: 0;
+}
+
 @keyframes App-logo-spin {
   from {
     transform: rotate(0deg);

@@ -82,7 +82,7 @@ export function PastPracticeTable(props) {
   const [prevInterviewQuetions, setPrevInterviewQuetions] = useState({});
   const [prevFeedback, setPrevFeedback] = useState({});
   useEffect(() => {
-    fetch("interviews/completed")
+    fetch("/interviews/completed")
       .then((result) => result.json())
       .then((data) => {
         data.forEach((element) => {
@@ -178,6 +178,12 @@ export function PastPracticeTable(props) {
       .then((res) => res.json())
       .then((res) => {
         if (res.ownQuestion && res.peerQuestion) {
+          let answerLink = res.ownQuestion.title.toLowerCase();
+          answerLink = answerLink.replace(/^[0-9]+\. */g, "");
+          answerLink = answerLink.replace(/ /g, "-");
+          res.ownQuestion.description = res.ownQuestion.description.concat(
+            `<a target="popup" href="https://leetcode.com/problems/${answerLink}/discuss/"><h3 style ="margin-top: -30px; margin-bottom: 50px;">Answer</h3></a>`
+          );
           setPrevInterviewQuetions(res.ownQuestion);
           setOpenQuestionDialog(true);
         }
@@ -340,7 +346,7 @@ export function UpcomingOrOngoingTable(props) {
     }
   }
   useEffect(() => {
-    fetch("interviews/ongoing")
+    fetch("/interviews/ongoing")
       .then((result) => result.json())
       .then((data) => {
         data.forEach((element) => {

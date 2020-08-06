@@ -70,7 +70,10 @@ router.get("/completed", verifyToken, async function (req, res) {
   await interviewService
     .getAllCompletedInterviewsOfAUser(user)
     .then((interviews) => res.status(200).json(interviews))
-    .catch((err) => res.status(500).json(err.message));
+    .catch((err) => {
+      console.log(err);
+      res.status(500).json(err.message)
+    });
 });
 
 //Get all ongoing or upcoming interviews
@@ -79,7 +82,10 @@ router.get("/ongoing", verifyToken, async function (req, res) {
   await interviewService
     .getAllOngoingOrUpcomingInterviewsOfAUser(user)
     .then((interviews) => res.status(200).json(interviews))
-    .catch((err) => res.status(500).json(err.message));
+    .catch((err) => {
+      console.log(err);
+      res.status(500).json(err.message)
+    });
 });
 //Check if the interview lobby exists
 router.get("/exists/:id", verifyToken, async function (req, res) {

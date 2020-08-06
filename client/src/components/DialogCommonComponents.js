@@ -221,6 +221,7 @@ export const DialogCustomTextField = ({ onChange, text }) => {
       value={text}
       rows={7}
       placeholder="Your answer..."
+      autoFocus
       InputProps={{
         classes: { input: classes.input },
       }}

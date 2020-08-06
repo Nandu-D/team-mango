@@ -8,6 +8,7 @@ const interviewRouter = require("./interview/interview.controller");
 const accountRouter = require("./users/users.controller");
 const questionRouter = require("./question/question.controller");
 const runCode = require("./helpers/runcode");
+const videoRouter = require("./video-chat/videoChatApis");
 
 const { json, urlencoded } = express;
 
@@ -23,6 +24,7 @@ app.use("/", accountRouter);
 app.use("/users", require("./users/users.controller"));
 app.use("/interviews", interviewRouter);
 app.use("/questions", questionRouter);
+app.use("/video", videoRouter);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
